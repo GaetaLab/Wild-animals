@@ -1,1 +1,98 @@
+# Ouriço code 
+# DRAFT
+# By Natália Gaeta 11/25
+
+# Illumina MiSeq 2 X 150 bp
+
+
+#Number of reads
+
+$grep -c "@NS500746" 1_OURICO1_S48_L001_R1_001.fastq = 1,742,482
+$grep -c "@NS500746" 1_OURICO1_S48_L001_R2_001.fastq = 1,742,482 reads
+
+Total reads: 3,484,964
+
+
+#Quality check
+fastqc  v0.11.9
+$fastqc -t 10 1_OURICO1_S48_L001_R1_001.fastq 1_OURICO1_S48_L001_R2_001.fastq 
+
+#Filtering and trimming
+trimgalore v0.6.6 
+afterqc v0.9.7
+trimmomatic v0.39
+
+a. Adapter removing
+$mkdir trim_galore
+$cd trim_galore
+$trim_galore --paired --quality 30 --stringency 5 --length 100 --trim-n -o trim_galore fastq/*R1_001.fastq fastq/*R2_001.fastq 
+
+b. filtering and trimming
+$trimmomatic PE -threads 10 -phred33  trim_galore/1_OURICO1_S48_L001_R1_001_val_1.fq trim_galore/1_OURICO1_S48_L001_R2_001_val_2.fq HEADCROP:10 LEADING:3 TRAILING:20 SLIDINGWINDOW:4:20 CROP:230 MINLEN:100 
+
+#Second quality check
+$fastqc -t 10 trimmomatic/trimmed_*P.fq
+
+#De novo assembly
+Unicycler v0.5.0
+$unicycler -1 trimmomatic/trimmed_1P.fq -2 trimmomatic/trimmed_2P.fq -o unicycler 
+
+
+#Quality after assembling
+$ quast -o results_quast unicycler/*.fasta 
+
+   
+**____Results____**
+
+Statistics without reference	assembly
+# contigs	94
+# contigs (>= 0 bp)	94
+# contigs (>= 1000 bp)	93
+# contigs (>= 5000 bp)	85
+# contigs (>= 10000 bp)	73
+# contigs (>= 25000 bp)	58
+# contigs (>= 50000 bp)	40
+Largest contig	241687
+Total length	5421792
+Total length (>= 0 bp)	5421792
+Total length (>= 1000 bp)	5421263
+Total length (>= 5000 bp)	5393427
+Total length (>= 10000 bp)	5301648
+Total length (>= 25000 bp)	5034385
+Total length (>= 50000 bp)	4403337
+N50	108437
+N75	62071
+L50	17
+L75	35
+GC (%)	57.18
+Mismatches	
+# N's	0
+# N's per 100 kbp	0
+------------------------------------------------------------------------------
+#Annotation 
+prokka v1.14.6
+gcode 11 = for bacterias
+
+$ prokka --addgenes --locustag 'KpO1' --centre 'ID' --compliant --genus 'Klebsiella' --species 'pneumoniae' --kingdom 'Bacteria' --gcode '11' \
+--evalue '1e-10' --cpus 5 --outdir annotation unicycler/*.fasta
+------------------------------------------------------------------------------------
+
+**-----Analysis------**
+
+a. Kleborate
+Kleborate v3
+$ kleborate -a *.fasta -o kleborate_results -p kpsc --trim_headers
+
+b. PRAP (Pan-resistome analysis)
+$python PRAP/PRAP.py -m N2 -indir /mnt/d/OneDrive/Pesquisas/Pesquisas_sequenciamento/UFRGS/silvestres/ourico/kpneumoniae_1/CSIphylogeny/fasta/arvore_menor/ \
+-outdir /mnt/d/OneDrive/Pesquisas/Pesquisas_sequenciamento/UFRGS/silvestres/ourico/kpneumoniae_1/CSIphylogeny/fasta/arvore_menor/output-prap
+
+c. abricate v.1.2.0
+$ abricate --db DATABASE unicycler/*.fasta > DATABASE.txt
+
+d. Integron Finder v2
+$ integron_finder unicycler/assembly.fasta --gbk --outdir ../integron-finder
+
+e. MOB-Suite v.3.1.2
+$ mob_recon --infile unicycler/assembly.fasta --outdir my_out_dir
 
